@@ -555,6 +555,12 @@ impl Parser {
         expr
     }
     fn primary(&mut self) -> Expr {
+        if self.check(&Token::Marat) && self.check_next(&Token::Liznut) {
+            self.advance();
+            self.advance();
+            return self.expression();
+        }
+
         if self.check(&Token::Etot) { self.advance(); return Expr::This; }
         if self.check(&Token::LBracket) {
             self.advance();
@@ -645,7 +651,6 @@ fn evaluate(expr: &Expr, env: Rc<RefCell<Environment>>) -> Value {
             if args.len() == 1 { return evaluate(&args[0], env); }
             Value::Void
         },
-
         Expr::Get(obj, name) => {
             let o = evaluate(obj, env.clone());
             match o {
@@ -726,7 +731,25 @@ fn evaluate(expr: &Expr, env: Rc<RefCell<Environment>>) -> Value {
             env.borrow_mut().assign(name, v.clone());
             v
         },
-        _ => Value::Void
+        Expr::Call(callee, args) => {
+            let vals: Vec<Value> = args.iter().map(|a| evaluate(a, env.clone())).collect();
+
+            match &**callee {
+                Expr::Get(obj, name) => {
+                    let o = evaluate(obj, env.clone());
+                    return call_method(o, name, vals, env.clone());
+                }
+                Expr::Variable(name) => {
+                    if let Some(etot) = env.borrow().get("etot") {
+                        return call_method(etot, name, vals, env.clone());
+                    } else {
+                        println!("Error: Method '{}' called without object context (etot).", name);
+                        return Value::Void;
+                    }
+                }
+                _ => Value::Void
+            }
+        }
     }
 }
 
